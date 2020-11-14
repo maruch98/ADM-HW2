@@ -46,6 +46,13 @@ def load_data(month_files:list, columns:list, chunk=False, chunksize:int=10**6, 
         return get_needed_data(month_files, columns, parse_dates)
 
 
+def compute_by_chunk(chunks, function, **kargs):
+    results = []
+    for df in tqdm(chunks):
+        results.append(function(df, **kargs))
+    return results
+
+
 def clean_memory(garbage:list):
     size = len(garbage)
     for i in range(size-1, -1, -1):
@@ -282,7 +289,78 @@ def average_time_after_first_view_2(columns:list):
 
 
 
+########## RQ2 ############################################################################################################
 
+## *****Number of sold products per category
+def num_sold_per_cat():
+    #import the data of October and parse the column event_time to datetime
+    data = pd.read_csv("2019-Oct.csv", #nrows=9000000, 
+                   parse_dates=['event_time'],
+                   date_parser=pd.to_datetime)
+    #import the data of November
+    data2 = pd.read_csv("2019-Nov.csv", #nrows=9000000, 
+                   parse_dates=['event_time'],
+                   date_parser=pd.to_datetime)
+    #concatenate the two datasets
+    fr=[data,data2]
+    data_tot=pd.concat(fr,ignore_index=True)
+    #plot showing the number of sold products per category
+    # obtain a subset of only the purchases, group by category code, and count the number of sold product plotting the biggest 10 values
+    rq2_main=data_tot[data_tot.event_type=='purchase'].groupby(data_tot.category_code)\
+    .product_id.count().sort_values(ascending=False).head(10)
+
+    rq2_main.plot.barh()
+
+## *****Most visited subcategories
+
+def most_v_cat():
+    #import the data of October and parse the column event_time to datetime
+    data = pd.read_csv("2019-Oct.csv", #nrows=9000000, 
+                   parse_dates=['event_time'],
+                   date_parser=pd.to_datetime)
+
+    #import the data of November
+    data2 = pd.read_csv("2019-Nov.csv", #nrows=9000000, 
+                   parse_dates=['event_time'],
+                   date_parser=pd.to_datetime)
+
+    #concatenate the two datasets
+    fr=[data,data2]
+    data_tot=pd.concat(fr,ignore_index=True)
+    #Plot of the most visited subcategories
+    # obtain a subset of only the views, group by category code, and count the views of each category plotting the biggest 10 values
+    rq2_1=data_tot[data_tot.event_type=='view'].groupby(data_tot.category_code)\
+    .category_code.count().nlargest(10)
+
+    rq2_1.plot.barh()
+
+## *****10 most sold products per category    
+ def most_sold_per_cat():
+        #import the data of October and parse the column event_time to datetime
+        data = pd.read_csv("2019-Oct.csv", #nrows=9000000, 
+                   parse_dates=['event_time'],
+                   date_parser=pd.to_datetime)
+
+        #import the data of November
+        data2 = pd.read_csv("2019-Nov.csv", #nrows=9000000, 
+                   parse_dates=['event_time'],
+                   date_parser=pd.to_datetime)
+
+        #concatenate the two datasets
+        fr=[data,data2]
+        data_tot=pd.concat(fr,ignore_index=True)
+        #The 10 most sold products per category
+        # obtain a subset of only the purchases,
+        p=data_tot[data_tot.event_type=='purchase']
+        #for each category code count the number of sold product showing the biggest 10 values
+        for category_code, t in  p.groupby('category_code'):
+            print(category_code)
+            print(t.groupby('product_id').user_session.count().nlargest(10))
+    
+    
+    
+    
+    
 ########## RQ4 ############################################################################################################
 
 ## ***** How much does each brand earn per month? (WORKS)
@@ -347,7 +425,45 @@ def top_n_two_months_losses_abs(columns:list, month1:str, month2:str, n=3):
     for i in range(n):
         print(f'The brand \"{diff_profit_list[i][0]}\" lost {round(diff_profit_list[i][1] * -1, 2):,.2f}$ between {month1} and {month2}.')
 
-            
+########## RQ6 ############################################################################################################
+
+##*****hourly average of visitors for each day of the week
+def havg_visit():
+    #import the data of October and parse the column event_time to datetime
+    data = pd.read_csv("2019-Oct.csv", #nrows=9000000, 
+                   parse_dates=['event_time'],
+                   date_parser=pd.to_datetime)
+
+    #import the data of November
+    data2 = pd.read_csv("2019-Nov.csv", #nrows=9000000, 
+                   parse_dates=['event_time'],
+                   date_parser=pd.to_datetime)
+
+    #concatenate the two datasets
+    fr=[data,data2]
+    data_tot=pd.concat(fr,ignore_index=True)
+    #Plot of the hourly average of visitors for each day of the week
+    import seaborn as sns
+    from matplotlib import pyplot as plt
+    sns.set()
+    # obtain two subsets of only the views for each month
+    view_ott=data[data.event_type=='view']
+    view_nov=data2[data2.event_type=='view']
+    #group the observations by day of the week and by hour of the day obtaining a matrix containing the numbers of views
+    sett_ott=view_ott.groupby([data.event_time.dt.weekday , data.event_time.dt.hour]).size().unstack().fillna(0)
+    sett_nov=view_nov.groupby([data2.event_time.dt.weekday , data2.event_time.dt.hour]).size().unstack().fillna(0)
+    #obtain the average number of visitors dividing each element of the matrix by 4 or by 5 according to the frequency of each weekday in each month
+    med_ott=[sett_ott[0:1]/4,sett_ott[1:4]/5,sett_ott[4:7]/4]
+    med_ott=pd.concat(med_ott)
+    med_nov=[sett_nov[0:4]/4,sett_nov[4:6]/5,sett_nov[6:7]/4]
+    med_nov=pd.concat(med_nov)
+    #plot the results in 2 subplots heatmaps where it's easy to visualize in wich part of the week the website is most visited 
+    fig, axes = plt.subplots(1,2)
+    fig.suptitle('Hourly average of visitors for each day of the week')
+    sns.heatmap(med_ott, ax=axes[0], vmax=200000)
+    axes[0].set_title('October')
+    sns.heatmap(med_nov, ax=axes[1], vmax=200000)
+    axes[1].set_title('November')
 
 ########## RQ7 ############################################################################################################
 
